@@ -7,7 +7,9 @@
   var LEVEL_ORDER = { red: 0, orange: 1, normal: 2, green: 3, gray: 4 };
   var CHIPS = [['alert', '重大＋抱怨'], ['red', '重大'], ['orange', '抱怨'], ['normal', '一般'], ['green', '正面'], ['gray', '交易租屋'], ['all', '全部']];
   var DAY = 86400000, FRESH_DAYS = 7, PAGE = 30;
-  var state = { password: '', posts: [], runs: [], level: 'alert', shown: PAGE };
+  var state = { password: '', posts: [], runs: [], level: 'alert', shown: PAGE, primary: '', school: '' };
+  var TOP_PER_WEEK = 5;   // 其他學校：每校每週互動（讚＋留言）前幾名算「精選」
+  var OTHERS = '__others';
 
   // ---------- 小工具 ----------
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
@@ -26,16 +28,64 @@
   function toast(msg) { var t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast.timer); toast.timer = setTimeout(function () { t.hidden = true; }, 2000); }
   function isFresh(p) { var c = Date.parse(p.createdAt), f = Date.parse(p.firstSeen); return !c || !f || c >= f - FRESH_DAYS * DAY; }
   function isAlert(p) { return p.level === 'red' || p.level === 'orange'; }
-  function needsAttention(p) { return !p.handled && isAlert(p) && isFresh(p); }
+  function needsAttention(p) { return isPrimary(p) && !p.handled && isAlert(p) && isFresh(p); }
   function url(p) {
     if (p.url) return /^https:\/\//.test(p.url) ? p.url : '#';
     return 'https://www.dcard.tw/f/' + encodeURIComponent(p.forumAlias) + '/p/' + encodeURIComponent(p.id);
   }
   function heat(p) {
     if (p.platform === 'PTT') return '推 ' + p.likeCount;
-    if (p.platform === '新聞') return '';
+    if (p.platform === '新聞' || p.platform === 'Threads') return '';
+    if (p.platform === 'YouTube') return p.commentCount ? '💬 ' + p.commentCount : '';
+    if (p.platform === 'Instagram') return '💬 ' + p.commentCount + '　❤ ' + p.likeCount;
+    if (p.platform === 'Google 地圖' || p.platform === 'Facebook' || p.platform === '網路') return '';
     return '💬 ' + p.commentCount + '　❤ ' + p.likeCount;
   }
+
+  // ---------- 學校 ----------
+  // v0.3 的資料沒有 school 欄位，一律算主校
+  function schoolOf(p) { return p.school || state.primary; }
+  function isPrimary(p) { return schoolOf(p) === state.primary; }
+  function shortName(n) { return String(n || '').replace(/^國立/, '').replace('科技大學', '科大'); }
+  function weekKey(t) {
+    var d = new Date(t); d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() - (d.getDay() + 6) % 7);
+    return d.getTime();
+  }
+  function featured(list) {
+    var groups = {}, out = [];
+    list.forEach(function (p) { var k = schoolOf(p) + '|' + weekKey(Date.parse(p.createdAt) || 0); (groups[k] = groups[k] || []).push(p); });
+    Object.keys(groups).forEach(function (k) {
+      out = out.concat(groups[k].sort(function (a, b) { return (b.likeCount + b.commentCount) - (a.likeCount + a.commentCount); }).slice(0, TOP_PER_WEEK));
+    });
+    return out;
+  }
+  // 目前選的學校要看的貼文：主校全部；其他學校只看每週精選
+  function cur() {
+    if (!state.school) return state.posts.filter(isPrimary);
+    var others = state.posts.filter(function (p) { return !isPrimary(p) && (state.school === OTHERS || schoolOf(p) === state.school); });
+    return featured(others);
+  }
+  function renderSchoolBar() {
+    var names = {};
+    state.posts.forEach(function (p) { if (!isPrimary(p)) names[schoolOf(p)] = true; });
+    var list = Object.keys(names).sort(function (a, b) { return a.localeCompare(b, 'zh-Hant'); });
+    $('schoolBar').hidden = !list.length;                     // 還沒有其他學校的資料就跟舊版一樣
+    if (!list.length) { state.school = ''; return; }
+    if (state.school && state.school !== OTHERS && !names[state.school]) state.school = '';
+    $('schoolFilter').innerHTML = '<option value="">' + esc(shortName(state.primary) || '本校') + '（完整監測）</option>'
+      + '<option value="' + OTHERS + '">其他學校・每週精選（' + list.length + ' 校）</option>'
+      + list.map(function (n) { return '<option value="' + esc(n) + '">' + esc(shortName(n)) + '・精選</option>'; }).join('');
+    $('schoolFilter').value = state.school;
+    $('schoolNote').textContent = state.school ? 'Dcard 校板每校每週讚＋留言前 ' + TOP_PER_WEEK + ' 名' : '';
+  }
+  $('schoolFilter').addEventListener('change', function () {
+    state.school = this.value; state.shown = PAGE;
+    // 其他學校看的是熱門文，預設全部分類、全部狀態
+    state.level = state.school ? 'all' : 'alert';
+    $('stateFilter').value = state.school ? 'all' : 'open';
+    render();
+  });
 
   async function api(body) {
     if (!API) throw new Error('網站還沒設定後端網址（config.js）');
@@ -73,19 +123,21 @@
     var j = await api({ action: 'list' });
     state.posts = j.posts || [];
     state.runs = j.runs || [];
+    state.primary = j.school || '';
     if (j.school) { $('schoolName').textContent = j.school + '・輿情雷達'; document.title = j.school + '・輿情雷達'; }
   }
 
   // ---------- 畫面 ----------
   function render() {
     var r = state.runs[0];
-    $('status').textContent = r ? '最近檢查 ' + fmt(r.time) + '・共 ' + state.posts.length + ' 則' : '尚無檢查紀錄';
+    renderSchoolBar();
+    $('status').textContent = r ? '最近檢查 ' + fmt(r.time) + '・共 ' + cur().length + ' 則' : '尚無檢查紀錄';
     $('errors').textContent = r && r.errors && r.errors.length ? '最近一次檢查的問題：\n' + r.errors.join('\n') : '';
     renderKpis(); renderTrend(); renderPlatforms(); renderList();
   }
 
   function renderKpis() {
-    var now = Date.now(), ps = state.posts;
+    var now = Date.now(), ps = cur();
     var within = function (days) { return ps.filter(function (p) { return Date.parse(p.createdAt) >= now - days * DAY; }); };
     var d1 = within(1), d7 = within(7);
     var cnt = function (arr, lv) { return arr.filter(function (p) { return p.level === lv; }).length; };
@@ -101,7 +153,7 @@
     var days = [], today = new Date(); today.setHours(0, 0, 0, 0);
     for (var i = 29; i >= 0; i--) days.push({ t: today.getTime() - i * DAY, alert: 0, other: 0 });
     var start = days[0].t;
-    state.posts.forEach(function (p) {
+    cur().forEach(function (p) {
       var t = Date.parse(p.createdAt);
       if (!t || t < start) return;
       var d = new Date(t); d.setHours(0, 0, 0, 0);
@@ -170,9 +222,9 @@
   window.addEventListener('resize', function () { clearTimeout(resizeTimer); resizeTimer = setTimeout(function () { if (!$('app').hidden) renderTrend(); }, 150); });
 
   function renderPlatforms() {
-    var since = Date.now() - 30 * DAY, c = { Dcard: 0, PTT: 0, '新聞': 0 };
-    state.posts.forEach(function (p) { if (Date.parse(p.createdAt) >= since && p.platform in c) c[p.platform]++; });
-    var max = Math.max(1, c.Dcard, c.PTT, c['新聞']);
+    var since = Date.now() - 30 * DAY, c = { Dcard: 0, PTT: 0, Threads: 0, YouTube: 0, Instagram: 0, Facebook: 0, 'Google 地圖': 0, '網路': 0, '新聞': 0 };
+    cur().forEach(function (p) { if (Date.parse(p.createdAt) >= since && p.platform in c) c[p.platform]++; });
+    var max = Math.max.apply(null, [1].concat(Object.keys(c).map(function (k) { return c[k]; })));
     $('platformBars').innerHTML = Object.keys(c).map(function (k) {
       return '<div class="bar-row"><span>' + k + '</span><div class="bar-track"><div class="bar-fill" style="width:' + (c[k] / max * 100) + '%"></div></div><b>' + c[k] + '</b></div>';
     }).join('');
@@ -181,7 +233,7 @@
   function filtered(rangeDays) {
     var lv = state.level, pf = $('platformFilter').value, st = $('stateFilter').value, q = $('search').value.trim();
     var days = rangeDays === undefined ? +$('rangeFilter').value : rangeDays, since = days ? Date.now() - days * DAY : 0;
-    return state.posts.filter(function (p) {
+    return cur().filter(function (p) {
       if (lv === 'alert' && !isAlert(p)) return false;
       if (lv !== 'alert' && lv !== 'all' && p.level !== lv) return false;
       if (pf && p.platform !== pf) return false;
@@ -210,6 +262,7 @@
     return '<article class="card ' + esc(p.level) + (p.handled ? ' done' : '') + '" data-id="' + esc(p.id) + '">'
       + '<div class="meta"><span class="badge ' + esc(p.level) + '">' + LEVEL_LABEL[p.level] + '</span>'
       + (isFresh(p) ? '' : '<span class="old" title="系統第一次看到時已發文超過 7 天">舊文</span>')
+      + (isPrimary(p) ? '' : '<span class="sch">' + esc(shortName(schoolOf(p))) + '</span>')
       + '<span class="pf">' + esc(p.platform) + '</span><span>' + esc(p.forum) + '</span><span>' + fmt(p.createdAt) + '</span>'
       + (heat(p) ? '<span>' + heat(p) + '</span>' : '') + '</div>'
       + '<a class="title" href="' + esc(url(p)) + '" target="_blank" rel="noopener noreferrer">' + highlight(p.title, p.hits) + '</a>'
@@ -248,14 +301,15 @@
   $('search').addEventListener('input', function () { state.shown = PAGE; renderList(); });
 
   $('copySummary').addEventListener('click', async function () {
-    var recent = state.posts.filter(function (p) { return Date.parse(p.createdAt) >= Date.now() - DAY; })
+    var recent = cur().filter(function (p) { return Date.parse(p.createdAt) >= Date.now() - DAY; })
       .sort(function (a, b) { return LEVEL_ORDER[a.level] - LEVEL_ORDER[b.level] || b.commentCount - a.commentCount; });
     var n = function (lv) { return recent.filter(function (p) { return p.level === lv; }).length; };
     var d = new Date();
-    var lines = ['【校園輿情摘要】' + (d.getMonth() + 1) + '/' + d.getDate() + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'),
-      '近 24 小時 Dcard／PTT／新聞共 ' + recent.length + ' 則：重大 ' + n('red') + '、抱怨 ' + n('orange') + '、正面 ' + n('green') + '、一般 ' + n('normal'), ''];
+    var who = state.school === OTHERS ? '其他學校精選' : state.school ? shortName(state.school) + '精選' : '';
+    var lines = ['【校園輿情摘要' + (who ? '・' + who : '') + '】' + (d.getMonth() + 1) + '/' + d.getDate() + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'),
+      '近 24 小時各平台共 ' + recent.length + ' 則：重大 ' + n('red') + '、抱怨 ' + n('orange') + '、正面 ' + n('green') + '、一般 ' + n('normal'), ''];
     recent.filter(function (p) { return p.level !== 'gray'; }).forEach(function (p, i) {
-      var where = p.platform === 'PTT' ? p.forum + '，推 ' + p.likeCount : p.platform === '新聞' ? '新聞：' + p.forum : 'Dcard ' + p.forum + '，留言 ' + p.commentCount;
+      var where = p.platform === 'PTT' ? p.forum + '，推 ' + p.likeCount : p.platform === '新聞' ? '新聞：' + p.forum : p.platform === 'Threads' ? 'Threads' : p.platform === 'YouTube' || p.platform === 'Google 地圖' ? p.forum : ['Instagram', 'Facebook', '網路'].indexOf(p.platform) >= 0 ? p.platform + '：' + p.forum : 'Dcard ' + p.forum + '，留言 ' + p.commentCount;
       lines.push((i + 1) + '. 【' + LEVEL_LABEL[p.level] + '】' + p.title + '（' + where + '）');
       lines.push('   ' + url(p));
     });

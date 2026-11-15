@@ -117,3 +117,10 @@ details.about summary { cursor: pointer; color: var(--gold2); font-weight: 700; 
 .toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: var(--gold); color: #1a1400; padding: 8px 16px; border-radius: 999px; font-weight: 700; font-size: 14px; z-index: 10; }
 .err { color: var(--orange); font-size: 13px; white-space: pre-line; }
 footer { text-align: center; color: var(--muted); font-size: 12px; padding: 8px 16px 28px; }
+
+/* v0.4 學校切換 */
+.school-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.school-bar[hidden] { display: none; }
+.school-bar select { border-color: var(--gold); font-weight: 600; max-width: 100%; }
+.school-bar .sub { margin: 0; }
+.card .meta .sch { color: var(--gold); font-weight: 600; }

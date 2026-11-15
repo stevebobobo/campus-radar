@@ -37,6 +37,10 @@
   </header>
 
   <main>
+    <div class="school-bar" id="schoolBar" hidden>
+      <select id="schoolFilter" aria-label="學校"></select>
+      <span class="sub" id="schoolNote"></span>
+    </div>
     <div class="kpis" id="kpis"></div>
 
     <section class="panel">
@@ -60,7 +64,7 @@
       <div class="filters">
         <div class="chips" id="levelChips"></div>
         <div class="selects">
-          <select id="platformFilter" aria-label="平台"><option value="">全部平台</option><option>Dcard</option><option>PTT</option><option>新聞</option></select>
+          <select id="platformFilter" aria-label="平台"><option value="">全部平台</option><option>Dcard</option><option>PTT</option><option>Threads</option><option>YouTube</option><option>Instagram</option><option>Facebook</option><option>Google 地圖</option><option value="網路">其他網站</option><option>新聞</option></select>
           <select id="stateFilter" aria-label="處理狀態"><option value="open">未處理</option><option value="all">全部狀態</option><option value="done">已處理</option></select>
           <select id="rangeFilter" aria-label="期間"><option value="1">近 24 小時</option><option value="7" selected>近 7 天</option><option value="30">近 30 天</option><option value="0">全部期間</option></select>
         </div>

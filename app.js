@@ -261,6 +261,7 @@
   function card(p) {
     return '<article class="card ' + esc(p.level) + (p.handled ? ' done' : '') + '" data-id="' + esc(p.id) + '">'
       + '<div class="meta"><span class="badge ' + esc(p.level) + '">' + LEVEL_LABEL[p.level] + '</span>'
+      + (p.deletedAt ? '<span class="old del" title="' + fmt(p.deletedAt) + ' 發現原文已被刪除，這裡保留的是刪除前抓到的標題和摘要">已刪文</span>' : '')
       + (isFresh(p) ? '' : '<span class="old" title="系統第一次看到時已發文超過 7 天">舊文</span>')
       + (isPrimary(p) ? '' : '<span class="sch">' + esc(shortName(schoolOf(p))) + '</span>')
       + '<span class="pf">' + esc(p.platform) + '</span><span>' + esc(p.forum) + '</span><span>' + fmt(p.createdAt) + '</span>'

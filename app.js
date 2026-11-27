@@ -240,7 +240,7 @@
       if (st === 'open' && p.handled) return false;
       if (st === 'done' && !p.handled) return false;
       if (since && Date.parse(p.createdAt) < since) return false;
-      if (q && (p.title + p.excerpt + p.context + p.forum + p.note).indexOf(q) < 0) return false;
+      if (q && (p.title + p.excerpt + p.context + (p.fullText || '') + p.forum + p.note).indexOf(q) < 0) return false;
       return true;
     }).sort(function (a, b) { return Date.parse(b.createdAt) - Date.parse(a.createdAt); });
   }
@@ -269,6 +269,7 @@
       + '<a class="title" href="' + esc(url(p)) + '" target="_blank" rel="noopener noreferrer">' + highlight(p.title, p.hits) + '</a>'
       + (p.excerpt ? '<p class="excerpt">' + highlight(p.excerpt, p.hits) + '</p>' : '')
       + (p.context ? '<p class="context">內文提到：' + highlight(p.context, p.hits) + '</p>' : '')
+      + (p.fullText ? '<details class="full"><summary>' + (p.deletedAt ? '看原文全文（刪除前保存）' : '看原文全文') + '</summary><p>' + highlight(p.fullText, p.hits) + '</p></details>' : '')
       + '<div class="ops"><button data-act="toggle">' + (p.handled ? '改回未處理' : '標記已處理') + '</button>'
       + '<select data-act="level">' + Object.keys(LEVEL_LABEL).map(function (k) { return '<option value="' + k + '"' + (k === p.level ? ' selected' : '') + '>改為：' + LEVEL_LABEL[k] + '</option>'; }).join('') + '</select>'
       + '<input data-act="note" placeholder="處理備註（例如：已轉學務處）" value="' + esc(p.note) + '"></div></article>';

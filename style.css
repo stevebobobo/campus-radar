@@ -95,6 +95,7 @@ table.data th:first-child, table.data td:first-child { text-align: left; }
 .pf { padding: 0 6px; border: 1px solid var(--gold); color: var(--gold2); border-radius: 4px; }
 .old { padding: 0 6px; border: 1px solid var(--gray); border-radius: 4px; }
 .old.del { border-color: var(--red); color: var(--red); }
+details.full { margin: 4px 0 8px; } details.full summary { cursor: pointer; color: var(--orange); font-size: 13px; } details.full p { white-space: pre-wrap; overflow-wrap: anywhere; color: #cdd8f3; max-height: 360px; overflow: auto; margin: 6px 0 0; padding: 8px; border-left: 2px solid var(--gray); }
 .card a.title { display: block; margin: 4px 0; color: var(--text); font-size: 16px; font-weight: 700; text-decoration: none; overflow-wrap: anywhere; }
 .card a.title:hover { color: var(--gold2); }
 .excerpt { margin: 0 0 6px; color: #cdd8f3; font-size: 14px; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
